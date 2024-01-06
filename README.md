@@ -26,7 +26,7 @@ The idea is to randomly "mix" students into groups several times, each time with
 To run the script, navigate to the project directory and run the following command:
 
 ```bash
-python icebreaker.py
+python generate_cards.py
 ```
 
 This will generate a set of random icebreaker cards. You can customize the number of cards and the questions on the cards by modifying the script.
