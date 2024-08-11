@@ -23,6 +23,13 @@ The idea is to randomly "mix" students into groups several times, each time with
 
 ## Usage
 
+Before running the script, you can customize the questions on the cards by modifying the `config.py` file. The `config.py` file contains the following variables:
+
+- `LANGUAGES`: A list of programming languages.
+- `DISTRIBUTIONS`: A list of Linux distributions.
+- `PIONEERS`: A list of computer science pioneers.
+- `NUM_STUDENTS`: The number of students in the class.
+
 To run the script, navigate to the project directory and run the following command:
 
 ```bash
