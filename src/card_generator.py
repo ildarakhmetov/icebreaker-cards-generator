@@ -1,42 +1,72 @@
-from itertools import product
-import random
 from typing import List, Tuple
+import pulp
 
 class CardGenerator:
     def __init__(self, languages: List[str], distributions: List[str], pioneers: List[str], random_seed=None):
         self.languages = languages
         self.distributions = distributions
         self.pioneers = pioneers
-        if random_seed is not None:
-            random.seed(random_seed)
 
     def generate_unique_combinations(self, k: int, max_attempts: int = 1000) -> List[Tuple[str, str, str]]:
         """
         Generates a list of k unique combinations where each pairing in the combination
         (language-distribution, distribution-pioneer, language-pioneer) is unique.
-        If it cannot find k unique combinations within max_attempts, it returns False.
         """
-        combinations = list(product(self.languages, self.distributions, self.pioneers))
-        random.shuffle(combinations)
+        # Initialize the ILP problem
+        prob = pulp.LpProblem("UniqueCombinations", pulp.LpMaximize)
 
-        unique_combinations = []
-        used_pairs = set()
-        attempts = 0
+        # Create decision variables
+        x = pulp.LpVariable.dicts("x", (self.languages, self.distributions, self.pioneers), cat='Binary')
 
-        while len(unique_combinations) < k and attempts < max_attempts:
-            combo = random.choice(combinations)
-            pairs = [(combo[0], combo[1]), (combo[1], combo[2]), (combo[0], combo[2])]
+        # Objective function: maximize the number of selected combinations
+        prob += pulp.lpSum(x[l][d][p] for l in self.languages for d in self.distributions for p in self.pioneers)
 
-            if any(pair in used_pairs for pair in pairs):
-                attempts += 1
-                continue
+        # Constraints to ensure unique pairs
+        # (language, distribution) pairs
+        for l in self.languages:
+            for d in self.distributions:
+                prob += pulp.lpSum(x[l][d][p] for p in self.pioneers) <= 1
 
-            for pair in pairs:
-                used_pairs.add(pair)
-            unique_combinations.append(combo)
-            attempts = 0  # Reset attempts after a successful addition
+        # (distribution, pioneer) pairs
+        for d in self.distributions:
+            for p in self.pioneers:
+                prob += pulp.lpSum(x[l][d][p] for l in self.languages) <= 1
 
-        if len(unique_combinations) < k:
+        # (language, pioneer) pairs
+        for l in self.languages:
+            for p in self.pioneers:
+                prob += pulp.lpSum(x[l][d][p] for d in self.distributions) <= 1
+
+        # Constraint to select exactly k combinations
+        prob += pulp.lpSum(x[l][d][p] for l in self.languages for d in self.distributions for p in self.pioneers) == k
+
+        # Relaxed constraints to ensure each language is used approximately equally (within ±2)
+        for l in self.languages:
+            prob += (pulp.lpSum(x[l][d][p] for d in self.distributions for p in self.pioneers) >= (k // len(self.languages)) - 1)
+            prob += (pulp.lpSum(x[l][d][p] for d in self.distributions for p in self.pioneers) <= (k // len(self.languages)) + 1)
+
+        # Relaxed constraints to ensure each distribution is used approximately equally (within ±2)
+        for d in self.distributions:
+            prob += (pulp.lpSum(x[l][d][p] for l in self.languages for p in self.pioneers) >= (k // len(self.distributions)) - 1)
+            prob += (pulp.lpSum(x[l][d][p] for l in self.languages for p in self.pioneers) <= (k // len(self.distributions)) + 1)
+
+        # Relaxed constraints to ensure each pioneer is used approximately equally (within ±2)
+        for p in self.pioneers:
+            prob += (pulp.lpSum(x[l][d][p] for l in self.languages for d in self.distributions) >= (k // len(self.pioneers)) - 1)
+            prob += (pulp.lpSum(x[l][d][p] for l in self.languages for d in self.distributions) <= (k // len(self.pioneers)) + 1)
+
+        # Solve the ILP problem
+        prob.solve()
+
+        # Collect the results
+        if prob.status == pulp.LpStatusOptimal:
+            result = []
+            for l in self.languages:
+                for d in self.distributions:
+                    for p in self.pioneers:
+                        if pulp.value(x[l][d][p]) == 1:
+                            result.append((l, d, p))
+            return result
+        else:
+            # If no optimal solution is found or the problem is infeasible
             return []
-
-        return unique_combinations
